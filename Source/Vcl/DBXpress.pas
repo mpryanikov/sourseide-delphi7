@@ -23,32 +23,49 @@ uses Libc;
 const
 
   MAXNAMELEN       = 64;
+  NAMEBUFLEN       = 32;
   SQL_ERROR        = -1;
   SQL_NULL_DATA    = 100;
 
-  SQL_SUCCESS                      = $0000;
-  DBXERR_NOMEMORY                  = $0001;
-  DBXERR_INVALIDFLDTYPE            = $0002;
-  DBXERR_INVALIDHNDL               = $0003;
-  DBXERR_INVALIDTIME               = $0004;
-  DBXERR_NOTSUPPORTED              = $0005;
-  DBXERR_INVALIDXLATION            = $0006;
-  DBXERR_INVALIDPARAM              = $0007;
-  DBXERR_OUTOFRANGE                = $0008;
-  DBXERR_SQLPARAMNOTSET            = $0009;
-  DBXERR_EOF                       = $000A;
-  DBXERR_INVALIDUSRPASS            = $000B;
-  DBXERR_INVALIDPRECISION          = $000C;
-  DBXERR_INVALIDLEN                = $000D;
-  DBXERR_INVALIDXISOLEVEL          = $000E;
-  DBXERR_INVALIDXTXNID             = $000F;
-  DBXERR_DUPLICATETXNID            = $0010;
-  DBXERR_DRIVERRESTRICTED          = $0011;
-  DBXERR_LOCALTRANSACTIVE          = $0012;
-  DBXERR_MULTIPLETRANSNOTENABLED   = $0013;
-  DBX_MAXSTATICERRORS              = $0014;
-  MaxReservedStaticErrors          = 255;
-// traceFlags 
+  DBXERR_NONE                    = $0000;
+  DBXERR_WARNING                 = $0001;
+  DBXERR_NOMEMORY                = $0002;
+  DBXERR_INVALIDFLDTYPE          = $0003;
+  DBXERR_INVALIDHNDL             = $0004;
+  DBXERR_NOTSUPPORTED            = $0005;
+  DBXERR_INVALIDTIME             = $0006;
+  DBXERR_INVALIDXLATION          = $0007;
+  DBXERR_OUTOFRANGE              = $0008;
+  DBXERR_INVALIDPARAM            = $0009;
+  DBXERR_EOF                     = $000A;
+  DBXERR_SQLPARAMNOTSET          = $000B;
+  DBXERR_INVALIDUSRPASS          = $000C;
+  DBXERR_INVALIDPRECISION        = $000D;
+  DBXERR_INVALIDLEN              = $000E;
+  DBXERR_INVALIDTXNISOLEVEL      = $000F;
+  DBXERR_INVALIDTXNID            = $0010;
+  DBXERR_DUPLICATETXNID          = $0011;
+  DBXERR_DRIVERRESTRICTED        = $0012;
+  DBXERR_LOCALTRANSACTIVE        = $0013;
+  DBXERR_MULTIPLETRANSNOTENABLED = $0014;
+  DBXERR_CONNECTIONFAILED        = $0015;
+  DBXERR_DRIVERINITFAILED        = $0016;
+  DBXERR_OPTLOCKFAILED           = $0017;
+  DBXERR_INVALIDREF              = $0018;
+  DBXERR_NOTABLE                 = $0019;
+
+  DBXERR_NODATA                  = $0064;
+  DBX_MAXSTATICERRORS            = $0064;
+
+  DBXERR_SQLERROR                = $0065;
+
+// not used. Removed in Delphi 8.  
+SQL_SUCCESS                      = $0000;
+MaxReservedStaticErrors          = 255;  
+DBXERR_INVALIDXISOLEVEL          = $000E;
+DBXERR_INVALIDXTXNID             = $000F;
+
+// traceFlags
 
     trUNKNOWN   = $0000;
     trQPREPARE  = $0001;             { prepared query statements }

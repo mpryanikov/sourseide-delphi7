@@ -1480,6 +1480,7 @@ begin
             end;
             if VarIsNull(KeyList) then
             begin
+              FieldList.Clear;
               DataSet.GetFieldList(FieldList, KeyFields);
               KeyList := VarArrayCreate([0, FieldList.Count - 1], varSmallInt);
               for i := 0 to FieldList.Count - 1 do
@@ -2011,6 +2012,25 @@ begin
     end;
 end;
 
+type
+
+{ Temporary class to address Defect# 156503.  Need to be merged with TPacketDataSet later }
+{ TInternalPacketDataSet }
+
+  TInternalPacketDataSet = class(TPacketDataSet)
+  protected
+    procedure SetStateFieldValue(State: TDataSetState; Field: TField; const Value: Variant); override;
+  end;
+
+procedure TInternalPacketDataSet.SetStateFieldValue(State: TDataSetState;
+  Field: TField; const Value: Variant);
+begin
+  if (State = dsNewValue) and VarIsClear(Value) then
+    DSBase.PutBlank(PByte(ActiveBuffer), 0, Field.FieldNo, BLANK_NOTCHANGED)
+  else
+    inherited;
+end;
+
 { TCustomProvider }
 
 constructor TCustomProvider.Create(AOwner: TComponent);
@@ -2270,7 +2290,7 @@ begin
   if Assigned(OnGetData) then
   begin
     if not Assigned(FDataDS) then
-      FDataDS := TPacketDataSet.Create(Self) else
+      FDataDS := TInternalPacketDataSet.Create(Self) else
       FDataDS.StreamMetaData := False;
     FDataDS.AppendData(Data, False);
     OnGetData(Self, FDataDS);
@@ -2533,14 +2553,31 @@ begin
 end;
 
 procedure TDataSetProvider.SetParams(Values: OleVariant);
+var
+  NewParams: TParams;
 begin
   if VarIsClear(Values) then Exit;
   CheckDataSet;
   if not Assigned(FParams) then
+  begin
     FParams := TParams.Create;
-  FParams.Clear;
-  UnpackParams(Values, FParams);
-  IProviderSupport(DataSet).PSSetParams(FParams);
+    UnpackParams(Values, FParams);
+    IProviderSupport(DataSet).PSSetParams(FParams);
+  end
+  else
+  begin
+    NewParams := TParams.Create;
+    try
+      UnpackParams(Values, NewParams);
+      if not NewParams.IsEqual(FParams) then
+      begin
+        FParams.Assign(NewParams);
+        IProviderSupport(DataSet).PSSetParams(FParams);
+      end;
+    finally
+      NewParams.Free;
+    end;
+  end;
 end;
 
 function TDataSetProvider.InternalGetParams(Types: TParamTypes = AllParamTypes): OleVariant;
@@ -2731,7 +2768,7 @@ constructor TUpdateTree.Create(AParent: TUpdateTree; AResolver: TCustomResolver)
 begin
   FResolver := AResolver;
   FParent := AParent;
-  FDeltaDS := TPacketDataSet.Create(nil);
+  FDeltaDS := TInternalPacketDataSet.Create(nil);
   FDeltaDS.ObjectView := True;
   FDeltaDS.FieldDefs.HiddenFields := True;
   FDetails := TList.Create;
@@ -3014,7 +3051,7 @@ begin
   begin
     if not Assigned(Parent) then
     begin
-      FErrorDS := TPacketDataSet.Create(nil);
+      FErrorDS := TInternalPacketDataSet.Create(nil);
       FErrorDS.ObjectView := True;
       FErrorDS.CreateFromDelta(Delta);
     end else
@@ -3563,12 +3600,42 @@ end;
 procedure TSQLResolver.InitializeConflictBuffer(Tree: TUpdateTree);
 var
   Alias: string;
+
+  function GenConflictSelectSQL(Tree: TUpdateTree; SQL: TStrings):Boolean;
+  var
+    i: Integer;
+    Temp: string;
+  begin
+    Result := False;
+    with PSQLInfo(Tree.Data)^ do
+    begin
+      SQL.Add('select');
+      for i := 0 to Tree.Delta.FieldCount - 1 do
+        if UseFieldInWhere(Tree.Delta.Fields[i], Provider.UpdateMode) then
+        begin
+          SQL.Add(Format(' %s%s%s%1:s,',
+            [QuotedTableDot, QuoteChar, Tree.Delta.Fields[i].Origin]));
+          Result := True;
+        end;
+      if Result then
+      begin
+        { Remove last ',' }
+        Temp := SQL[SQL.Count-1];
+        SQL[SQL.Count-1] := Copy(Temp, 1, Length(Temp) - 1);
+        SQL.Add(Format(' from %s %s',[QuotedTable, Alias]));     { Do not localize }
+      end;
+    end;
+  end;
+
 begin
   if PSQLInfo(Tree.Data)^.HasObjects then Alias := DefAlias else Alias := '';
   FSQL.Clear;
   FParams.Clear;
-  GenSelectSQL(Tree, FSQL, FParams, Alias);
-  DoGetValues(FSQL, FParams, Tree.Delta);
+  if GenConflictSelectSQL(Tree, FSQL) then
+  begin
+    GenWhereSQL(Tree, FSQL, FParams, upWhereKeyOnly, Alias);
+    DoGetValues(FSQL, FParams, Tree.Delta);
+  end;                                                      
 end;
 
 procedure TSQLResolver.InternalDoUpdate(Tree: TUpdateTree; UpdateKind: TUpdateKind);
@@ -3587,7 +3654,8 @@ begin
       ukInsert: GenInsertSQL(Tree, FSQL, FParams);
       ukDelete: GenDeleteSQL(Tree, FSQL, FParams, Alias);
     end;
-    DoExecSQL(FSQL, FParams);
+    if FSQL.Text <> '' then
+      DoExecSQL(FSQL, FParams);
   end;
 end;
 
@@ -3865,13 +3933,14 @@ end;
 procedure TSQLResolver.GenUpdateSQL(Tree: TUpdateTree; SQL: TStrings;
   Params: TParams; Alias: string);
 
-  procedure AddField(Field: TField; InObject, InArray: Boolean);
+  function AddField(Field: TField; InObject, InArray: Boolean): boolean;
   var
     i: Integer;
     TempStr: string;
     Value: Variant;
     NoParam: Boolean;
   begin
+    Result := False; 
     NoParam := False;
     with PSQLInfo(Tree.Data)^ do
     begin
@@ -3880,7 +3949,8 @@ procedure TSQLResolver.GenUpdateSQL(Tree: TUpdateTree; SQL: TStrings;
         if InArray then
           SQL.Add(Format(' %s(',[TObjectField(Field).ObjectType]));
         for i := 0 to TObjectField(Field).FieldCount - 1 do
-          AddField(TObjectField(Field).Fields[i], True, InArray);
+          Result := Result or
+            AddField(TObjectField(Field).Fields[i], True, InArray);
         if InArray then
         begin
           TempStr := SQL[SQL.Count-1];
@@ -3892,7 +3962,8 @@ procedure TSQLResolver.GenUpdateSQL(Tree: TUpdateTree; SQL: TStrings;
       begin
         SQL.Add(Format('%s = %s(',[Field.FullName, TObjectField(Field).ObjectType]));
         for i := 0 to TObjectField(Field).FieldCount - 1 do
-          AddField(TObjectField(Field).Fields[i], InObject, True);
+          Result := Result or
+            AddField(TObjectField(Field).Fields[i], InObject, True);
         TempStr := SQL[SQL.Count-1];
         SQL[SQL.Count-1] := Copy(TempStr, 1, Length(TempStr) - 1);
         SQL.Add('),');
@@ -3903,9 +3974,11 @@ procedure TSQLResolver.GenUpdateSQL(Tree: TUpdateTree; SQL: TStrings;
         Value := Field.NewValue;
         if VarIsClear(Value) then Value := Field.OldValue;
         TParam(Params.Add).AssignFieldValue(Field, Value);
+        Result := True; 
       end
       else if UseFieldInUpdate(Field) then
       begin
+        Result := True; 
         if (Field.DataType = ftOraClob) and (not InformixLob) then
         begin
           NoParam := True;
@@ -3944,6 +4017,7 @@ var
   TempStr: string;
   OraLobs: Integer;
   Value: Variant;
+  UpdateReqd: Boolean; 
 begin
   OraLobs := 0;
   with PSQLInfo(Tree.Data)^ do
@@ -3957,15 +4031,24 @@ begin
       SQL.Add(Format(') %s set',[Alias]));                                                      { Do not localize }
     end else
       SQL.Add(Format('update %s %s set', [QuotedTable, Alias]));                                { Do not localize }
-                                                                                                
+
+    UpdateReqd := False; 
     for I := 0 to Tree.Delta.FieldCount - 1 do
     begin
       if (Tree.Delta.Fields[i].DataType in [ftOraClob, ftOraBlob]) and
           UseFieldInUpdate(Tree.Delta.Fields[I]) then
           if (not InformixLob) then
             Inc(OraLobs);
-      AddField(Tree.Delta.Fields[i], Alias = NestAlias, False);
+      if  AddField(Tree.Delta.Fields[i], Alias = NestAlias, False) then
+        UpdateReqd := True;
     end;
+
+    if not UpdateReqd then
+    begin                 
+      SQL.Clear;          
+      Exit;               
+    end;                  
+
     { Remove last ',' }
     TempStr := SQL[SQL.Count-1];
     SQL[SQL.Count-1] := Copy(TempStr, 1, Length(TempStr) - 1);
@@ -4010,7 +4093,7 @@ begin
     for i := 0 to Tree.Delta.FieldCount - 1 do
       with Tree.Delta.Fields[i] do
         if not (DataType in [ftDataSet, ftReference]) and (FieldKind = fkData)
-           and (pfInWhere in ProviderFlags) then
+           and (pfInUpdate in ProviderFlags) then
           SQL.Add(Format(' %s%s%s%1:s,',[QuotedTableDot, QuoteChar, Origin]));
     { Remove last ',' }
     Temp := SQL[SQL.Count-1];

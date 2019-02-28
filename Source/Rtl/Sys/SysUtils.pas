@@ -16482,12 +16482,17 @@ end;
 
 {$IFDEF MSWINDOWS}
 function GetEnvironmentVariable(const Name: string): string;
+const
+  BufSize = 1024;
 var
-  Len: integer;
+  Len: Integer;
+  Buffer: array[0..BufSize - 1] of Char;
 begin
   Result := '';
-  Len := GetEnvironmentVariable(PChar(Name), nil, 0);
-  if Len > 0 then
+  Len := GetEnvironmentVariable(PChar(Name), @Buffer, BufSize);
+  if Len < BufSize then
+    SetString(Result, PChar(@Buffer), Len)
+  else
   begin
     SetLength(Result, Len - 1);
     GetEnvironmentVariable(PChar(Name), PChar(Result), Len);

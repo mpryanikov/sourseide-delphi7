@@ -2322,7 +2322,7 @@ var
   Len: Integer;
 begin
   Len := SendMessage(ComboBox.Handle, CB_GETLBTEXTLEN, Index, 0);
-  if Len <> CB_ERR then
+  if (Len <> CB_ERR) and (Len > 0) then
   begin
     SetLength(Result, Len);
     SendMessage(ComboBox.Handle, CB_GETLBTEXT, Index, Longint(PChar(Result)));

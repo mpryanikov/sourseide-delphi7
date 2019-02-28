@@ -733,6 +733,7 @@ uses DBConsts, MidConst, Provider, TypInfo, ComObj, FMTBcd;
 {$IFDEF LINUX}
 uses DBConsts, MidConst, Provider, TypInfo, FMTBcd, Types;
 {$ENDIF}
+
 { Exceptions }
 
 constructor EDBClient.Create(Message: string; ErrorCode: DBResult);
@@ -767,7 +768,12 @@ begin
       with Params[I] do
         if ParamType in Types then
         begin
-          Result[Idx] := VarArrayOf([Name, Value, Ord(DataType), Ord(ParamType)]);
+          if VarIsCustom(Value) then
+            Result[Idx] := VarArrayOf([Name, VarToStr(Value), Ord(DataType), Ord(ParamType),
+                                       Size, Precision, NumericScale])
+          else
+            Result[Idx] := VarArrayOf([Name, Value, Ord(DataType), Ord(ParamType),
+                                       Size, Precision, NumericScale]);
           Inc(Idx);
         end;
   end;
@@ -776,7 +782,7 @@ end;
 procedure UnpackParams(const Source: OleVariant; Dest: TParams);
 var
   TempParams: TParams;
-  i: Integer;
+  HighBound, i: Integer;
 begin
   if not VarIsNull(Source) and VarIsArray(Source) and VarIsArray(Source[0]) then
   begin
@@ -784,14 +790,21 @@ begin
     try
       for i := 0 to VarArrayHighBound(Source, 1) do
       begin
+        HighBound := VarArrayHighBound(Source[i], 1);
         with TParam(TempParams.Add) do
         begin
-          if VarArrayHighBound(Source[i], 1) > 1 then
-            DataType := TFieldType(Source[i][2]);
-          if VarArrayHighBound(Source[i], 1) > 2 then
-            ParamType := TParamType(Source[i][3]);
           Name := Source[i][0];
-          Value := Source[i][1];
+          if HighBound > 1 then
+            DataType := TFieldType(Source[i][2]);
+          if HighBound > 2 then
+            ParamType := TParamType(Source[i][3]);
+          if HighBound > 3 then
+            Size := Source[i][4];
+          if HighBound > 4 then
+            Precision := Source[i][5];
+          if HighBound > 5 then
+            NumericScale := Source[i][6];
+          Value := Source[i][1];  // Value must be set last
         end;
       end;
       Dest.Assign(TempParams);
@@ -1174,7 +1187,8 @@ begin
   ChangesMade := True;
   if Assigned(FDSBase) then
     FDSBase.GetProp(dspropDATAHASCHANGED, @ChangesMade);
-  if (FileName <> '') and ChangesMade and not (csDesigning in ComponentState) then
+  if (FileName <> '') and not (csDesigning in ComponentState) and
+     (ChangesMade or not(FileExists(FileName))) then
     SaveToFile(FileName);
   inherited CloseCursor;
   if HasAppServer then
@@ -1194,11 +1208,12 @@ begin
     end;
   end
   else if FSavePacketOnClose and (FileName = '') and (ProviderName = '') and
-     (DataSetField = nil) then
+     (FParentDataSet = nil) then
     SaveDataPacket;
   FDSBase := nil;
   FCloneSource := nil;
   FParentDataSet := nil;
+  SetAltRecBuffers(nil, nil, nil);
 end;
 
 procedure TCustomClientDataSet.DefChanged(Sender: TObject);
@@ -1344,15 +1359,15 @@ begin
   CheckFieldProps;
   AllocKeyBuffers;
   FDSCursor.MoveToBOF;
+  if FIndexName <> '' then
+     if FFieldsIndex then
+       SortOnFields(FDSCursor, FIndexName, False, False) else
+       SwitchToIndex(FIndexName);
   if not Assigned(FCloneSource) then
   begin
     if InternalCalcFields and not (csDesigning in ComponentState) then
       Check(FDSBase.SetFieldCalculation(Integer(Self),
         @TCustomClientDataSet.CalcFieldsCallback));
-    if FIndexName <> '' then
-       if FFieldsIndex then
-         SortOnFields(FDSCursor, FIndexName, False, False) else
-         SwitchToIndex(FIndexName);
     CheckMasterRange;
     if DisableStringTrim then FDSBase.SetProp(dspropDISABLESTRINGTRIM, Integer(True));
     if FReadOnly then FDSBase.SetProp(dspropREADONLY, Integer(True));
@@ -1519,7 +1534,8 @@ var
   NewData: OleVariant;
   BaseDS: TCustomClientDataSet;
 begin
-  CheckActive;             
+  { Throw error if we are closed, but not if we are in the middle of opening }
+  if not Assigned(DSCursor) then CheckActive;
   UpdateCursorPos;
   Check(DSCursor.GetRowRequestPacket(foRecord in Options, foBlobs in Options,
     foDetails in Options, True, DataPacket));
@@ -1529,6 +1545,7 @@ begin
   NewData := BaseDS.DoRowRequest(NewData, Byte(Options));
   UpdateCursorPos;
   Check(DSCursor.RefreshRecord(VarToDataPacket(NewData)));
+  if not Active then Exit;
   DSCursor.GetCurrentRecord(ActiveBuffer);
   if Options = [foDetails] then
     DataEvent(deDataSetChange, 0);
@@ -2992,6 +3009,20 @@ procedure TCustomClientDataSet.DecodeIndexDesc(const IndexDesc: DSIDXDesc;
     end;
   end;
 
+  function FindNameFromId(const FieldId: Integer; var FieldName: string): Boolean;
+  begin
+    { When using nested datasets, the linking field is left out of the FieldDefList which
+      creates a "hole".  The code below looks first in the normal spot, and in the location
+      adjusted for the hole. }
+    if (FieldId <= FieldDefList.Count) and (FieldDefList[FieldId - 1].FieldNo = FieldId) then
+      FieldName := FieldDefList.Strings[FieldId - 1]
+    else if InternalCalcFields and Assigned(FParentDataSet) and
+      (FieldId-2 < FieldDefList.Count) and (FieldDefList[FieldId - 2].FieldNo = FieldId) then
+      FieldName := FieldDefList.Strings[FieldId - 2]
+    else
+      FieldName := '';
+    Result := FieldName <> '';
+  end;
 
 var
   I: Integer;
@@ -3006,12 +3037,8 @@ begin
     CaseInsFields := '';
     for I := 0 to iFields - 1 do
     begin
-      if iKeyFields[I] <= FieldDefList.Count then
-      begin
-        FieldName := FieldDefList.Strings[iKeyFields[I] - 1];
-        ConcatField(Fields, FieldName);
-      end else
-        FieldName := '';
+      if not FindNameFromId(iKeyFields[I], FieldName) then Continue;
+      ConcatField(Fields, FieldName);
       if bDescending[I] then
         ConcatField(DescFields, FieldName);
       if bCaseInsensitive[I] then
@@ -3205,13 +3232,20 @@ end;
 function TCustomClientDataSet.GetIndexField(Index: Integer): TField;
 var
   FieldNo: Integer;
+  FieldName: string;
 begin
   if (Index < 0) or (Index >= FIndexFieldCount) then
     DatabaseError(SFieldIndexError, Self);
   FieldNo := FIndexFieldMap[Index];
   Result := FieldByNumber(FieldNo);
   if Result = nil then
-    DatabaseErrorFmt(SIndexFieldMissing, [FieldDefs[FieldNo - 1].Name], Self);
+  begin
+    if FieldNo-1 < FieldDefs.Count then
+      FieldName := FieldDefs[FieldNo - 1].Name
+    else
+      FieldName := IntToStr(FieldNo);
+    DatabaseErrorFmt(SIndexFieldMissing, [FieldName], Self);
+  end;
 end;
 
 function TCustomClientDataSet.GetIsIndexField(Field: TField): Boolean;
@@ -3979,8 +4013,8 @@ begin
       case TField(Fields[i]).DataType of
         ftString, ftFixedChar, ftWideString, ftGUID:
           if (i = Fields.Count - 1) and (loPartialKey in Options) then
-            ValStr := Format('''%s*''',[VarToStr(Value)]) else
-            ValStr := Format('''%s''',[VarToStr(Value)]);
+            ValStr := QuotedStr(VarToStr(Value) + '*') else
+            ValStr := QuotedStr(VarToStr(Value));          
         ftDate, ftTime, ftDateTime, ftTimeStamp:
           ValStr := Format('''%s''',[VarToStr(Value)]);
         ftSmallint, ftInteger, ftWord, ftAutoInc, ftBoolean, ftFloat, ftCurrency, ftBCD, ftLargeInt, ftFMTBcd:

@@ -543,6 +543,8 @@ begin
       // stValue is returned if TableNames contain quote chars.
       if (SQLToken = stTableName) or (SQLToken = stValue) then
       begin
+        if Copy(Token, Length(Token), 1) = ';' then
+          Token := Copy(Token, 1, Length(Token)-1);
         Result := Token;
         while (Start[0] = '.') and not (SQLToken in [stEnd]) do
         begin
@@ -589,7 +591,8 @@ begin
         end;
         if (Start[0] = ',') or (Start[1] = ',') then
           exit;
-        NextSqlToken(Start, Token, CurSection);
+        SQLToken := NextSqlToken(Start, Token, CurSection);
+        if SQLToken in SQLSections then CurSection := SQLToken;
         if Assigned(AnsiStrPos(Start, PChar(SInnerJoin))) or
            Assigned(AnsiStrPos(Start, PChar(SOuterJoin))) then
           Exit;
@@ -1011,6 +1014,15 @@ begin
 end;
 
 function TFilterExpr.PutConstant(Node: PExprNode): Integer;
+
+  function PutConstInt64(DataType: TFieldType; const Value: Variant): Integer;
+  var
+    IntValue: LargeInt;
+  begin
+    IntValue := Value;
+    Result := PutConstNode(DataType, @IntValue, SizeOf(IntValue));
+  end;
+
 begin
   Result := 0;
   case Node^.FDataType of
@@ -1034,6 +1046,8 @@ begin
       Result := PutConstBCD(Node^.FData, Node^.FDataSize);
     ftFMTBcd:
       Result := PutConstFMTBCD(Node^.FData, Node^.FDataSize);
+    ftLargeint:
+      Result := PutConstInt64(Node^.FDataType, Node^.FData);
     else
       DatabaseErrorFmt(SExprBadConst, [Node^.FData]);
   end;

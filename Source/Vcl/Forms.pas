@@ -2719,7 +2719,8 @@ begin
     FClientHeight := 0;
     FTextHeight := 0;
     Scaled := False;
-    FOldCreateOrder := not ModuleIsCpp;
+    if ClassParent = TForm then
+      FOldCreateOrder := not ModuleIsCpp;
     inherited ReadState(Reader);
     if (FPixelsPerInch <> 0) and (FTextHeight > 0) then
     begin
@@ -6244,7 +6245,7 @@ begin
   if P <> nil then StrCopy(ModuleName, P + 1);
   P := AnsiStrScan(ModuleName, '.');
   if P <> nil then P^ := #0;
-  AnsiLower(ModuleName + 1);
+  AnsiLower(CharNext(ModuleName));
   FTitle := ModuleName;
   if not IsLibrary then CreateHandle;
   UpdateFormatSettings := True;
@@ -6588,7 +6589,7 @@ begin
           end;
         WM_CTLCOLORMSGBOX..WM_CTLCOLORSTATIC:
           Result := SendMessage(LParam, CN_BASE + Msg, WParam, LParam);
-        WM_ENDSESSION: if TWMEndSession(Message).EndSession then FTerminate := True;
+        WM_ENDSESSION: if TWMEndSession(Message).EndSession then Halt;
         WM_COPYDATA:
           if (PCopyDataStruct(Message.lParam)^.dwData = DWORD($DE534454)) and
             (FAllowTesting) then
@@ -7074,6 +7075,7 @@ begin
   end;
 
   if CallHelp and (not Result) then
+  begin
     if Assigned(ActiveForm) and ActiveForm.HandleAllocated and (ActiveForm.FHelpFile <> '') then
     begin
       HelpHandle := ActiveForm.Handle;
@@ -7089,22 +7091,51 @@ begin
     end else
       if not FHandleCreated then
         PostMessage(FHandle, CM_INVOKEHELP, Command, Data);
+  end;
+end;
+
+function DoOnHelp(Command: Word; Data: Integer; var CallHelp: Boolean): Boolean;
+var
+  ActiveForm: TCustomForm;
+begin
+  Result := False;
+  CallHelp := True;
+  ActiveForm := Screen.ActiveCustomForm;
+
+  { let existing hooks get called, if any. }
+  if Assigned(ActiveForm) and (Assigned(ActiveForm.FOnHelp)) then
+    Result := ActiveForm.FOnHelp(Command, Data, CallHelp)
+  else
+    if Assigned(Application.FOnHelp) then
+      Result := Application.FOnHelp(Command, Data, CallHelp)
 end;
 
 function TApplication.HelpKeyword(const Keyword: String): Boolean;
+var
+  CallHelp: Boolean;
 begin
-  Result := true;
-  if ValidateHelpSystem then
-    HelpSystem.ShowHelp(Keyword, GetCurrentHelpFile)
-  else Result := false;
+  Result := DoOnHelp(HELP_COMMAND, Integer(PChar(Keyword)), CallHelp);
+  if CallHelp and (not Result) then
+  begin
+    if ValidateHelpSystem then
+      HelpSystem.ShowHelp(Keyword, GetCurrentHelpFile)
+    else
+      Result := false;
+  end;
 end;
 
 function TApplication.HelpContext(Context: THelpContext): Boolean;
+var
+  CallHelp: Boolean;
 begin
-  Result := true;
-  if ValidateHelpSystem then
-    HelpSystem.ShowContextHelp(Context, GetCurrentHelpFile)
-  else Result := false;
+  Result := DoOnHelp(HELP_CONTEXT, Context, CallHelp);
+  if CallHelp and (not Result) then
+  begin
+    if ValidateHelpSystem then
+      HelpSystem.ShowContextHelp(Context, GetCurrentHelpFile)
+    else
+      Result := false;
+  end;
 end;
 
 function TApplication.HelpCommand(Command: Integer; Data: Longint): Boolean;
@@ -7113,11 +7144,17 @@ begin
 end;
 
 function TApplication.HelpJump(const JumpID: string): Boolean;
+var
+  CallHelp: Boolean;
 begin
-  Result := true;
-  if ValidateHelpSystem then
-    HelpSystem.ShowTopicHelp(JumpID, GetCurrentHelpFile)
-  else Result := false;
+  Result := DoOnHelp(HELP_COMMAND, Integer(PChar(JumpID)), CallHelp);
+  if CallHelp and (not Result) then
+  begin
+    if ValidateHelpSystem then
+      HelpSystem.ShowTopicHelp(JumpID, GetCurrentHelpFile)
+    else
+      Result := false;
+  end;
 end;
 
 function TApplication.GetExeName: string;

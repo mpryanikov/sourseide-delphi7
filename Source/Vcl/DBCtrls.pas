@@ -2922,12 +2922,14 @@ end;
 
 procedure TDBRadioGroup.SetValue(const Value: string);
 var
+  WasFocused: Boolean;
   I, Index: Integer;
 begin
   if FValue <> Value then
   begin
     FInSetValue := True;
     try
+      WasFocused := (ItemIndex > -1) and (Buttons[ItemIndex].Focused);
       Index := -1;
       for I := 0 to Items.Count - 1 do
         if Value = GetButtonValue(I) then
@@ -2936,6 +2938,9 @@ begin
           Break;
         end;
       ItemIndex := Index;
+      // Move the focus rect along with the selected index
+      if WasFocused then
+        Buttons[ItemIndex].SetFocus;
     finally
       FInSetValue := False;
     end;

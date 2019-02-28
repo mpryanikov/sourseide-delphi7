@@ -97,31 +97,72 @@ resourcestring
   SErrorMappingError = 'SQL Error: Error mapping failed';
   SStoredProcsNotSupported = 'Stored Procedures not supported by ''%s'' Server';
   SPackagesNotSupported = 'Packages are not supported by ''%s'' Server';
-  SDBXUNKNOWNERROR = 'DBX Error: No Mapping for Error Code Found';
-  SDBXNOCONNECTION = 'DBX Error: Connection not found, error message cannot be retrieved';
-  SDBXNOMETAOBJECT = 'DBX Error: MetadataObject not found, error message cannot be retrieved';
-  SDBXNOCOMMAND = 'DBX Error: Command not found, error message cannot be retrieved';
-  SDBXNOCURSOR = 'DBX Error: Cursor not found, error message cannot be retrieved';
-  SNOMEMORY = 'dbExpress Error: Insufficient Memory for Operation';
-  SINVALIDFLDTYPE = 'dbExpress Error: Invalid Field Type';
-  SINVALIDHNDL = 'dbExpress Error: Invalid Handle';
-  SINVALIDTIME = 'dbExpress Error: Invalid Time';
-  SNOTSUPPORTED = 'dbExpress Error: Operation Not Supported';
-  SINVALIDXLATION = 'dbExpress Error: Invalid Data Translation';
-  SINVALIDPARAM = 'dbExpress Error: Invalid Parameter';
-  SOUTOFRANGE = 'dbExpress Error: Parameter/Column out of Range';
-  SSQLPARAMNOTSET = 'dbExpress Error: Parameter Not Set';
-  SEOF = 'dbExpress Error: Result set at EOF';
-  SINVALIDUSRPASS = 'dbExpress Error: Invalid Username/Password';
-  SINVALIDPRECISION = 'dbExpress Error: Invalid Precision';
-  SINVALIDLEN = 'dbExpress Error: Invalid Length';
-  SINVALIDXISOLEVEL = 'dbExpress Error: Invalid Transaction Isolation Level';
-  SINVALIDTXNID = 'dbExpress Error: Invalid Transaction ID';
-  SDUPLICATETXNID = 'dbExpress Error: Duplicate Transaction ID';
-  SDRIVERRESTRICTED = 'dbExpress Error: Application is not licensed to use this feature';
-  SLOCALTRANSACTIVE = 'dbExpress Error: Local Transaction already active';
-  SMULTIPLETRANSNOTENABLED = 'dbExpress Error: Multiple Transactions not Enabled';
-  SMultiConnNotSupported = 'Multiple Connections not supported by %s driver';
+  SDBXUNKNOWNERROR = 'dbExpress Error: Unknown Error Code ''%s''';
+  SDBXNOCONNECTION = 'dbExpress Error: Connection not found, error message cannot be retrieved';
+  SDBXNOMETAOBJECT = 'dbExpress Error: MetadataObject not found, error message cannot be retrieved';
+  SDBXNOCOMMAND = 'dbExpress Error: Command not found, error message cannot be retrieved';
+  SDBXNOCURSOR = 'dbExpress Error: Cursor not found, error message cannot be retrieved';
+
+//  #define DBXERR_NONE                    0x0000
+  SNOERROR = '';
+//  #define DBXERR_WARNING                 0x0001
+  SWARNING = '[0x0001]: Warning';
+//#define DBXERR_NOMEMORY                0x0002
+  SNOMEMORY = '[0x0002]: Insufficient Memory for Operation';
+//#define DBXERR_INVALIDFLDTYPE          0x0003
+  SINVALIDFLDTYPE = '[0x0003]: Invalid Field Type';
+//#define DBXERR_INVALIDHNDL             0x0004
+  SINVALIDHNDL = '[0x0004]: Invalid Handle';
+//#define DBXERR_NOTSUPPORTED            0x0005
+  SNOTSUPPORTED = '[0x0005]: Operation Not Supported';
+//#define DBXERR_INVALIDTIME             0x0006
+  SINVALIDTIME = '[0x0006]: Invalid Time';
+//#define DBXERR_INVALIDXLATION          0x0007
+  SINVALIDXLATION = '[0x0007]: Invalid Data Translation';
+//#define DBXERR_OUTOFRANGE              0x0008
+  SOUTOFRANGE = '[0x0008]: Parameter/Column out of Range';
+//#define DBXERR_INVALIDPARAM            0x0009
+  SINVALIDPARAM = '[0x0009]: Invalid Parameter';
+//#define DBXERR_EOF                     0x000A
+  SEOF = '[0x000A]: Result set at EOF';
+//#define DBXERR_SQLPARAMNOTSET          0x000B
+  SSQLPARAMNOTSET = 'dbExpress Error [0x000B]: Parameter Not Set';
+//#define DBXERR_INVALIDUSRPASS          0x000C
+  SINVALIDUSRPASS = '[0x000C] Invalid Username/Password';
+//#define DBXERR_INVALIDPRECISION        0x000D
+  SINVALIDPRECISION = '[0x000D]: Invalid Precision';
+//#define DBXERR_INVALIDLEN              0x000E
+  SINVALIDLEN = '[0x000E]: Invalid Length';
+//#define DBXERR_INVALIDTXNISOLEVEL      0x000F
+  SINVALIDXISOLEVEL = '[0x000F]: Invalid Transaction Isolation Level';
+//#define DBXERR_INVALIDTXNID            0x0010
+  SINVALIDTXNID = '[0x0010]: Invalid Transaction ID';
+//#define DBXERR_DUPLICATETXNID          0x0011
+  SDUPLICATETXNID = '[0x0011]: Duplicate Transaction ID';
+//#define DBXERR_DRIVERRESTRICTED        0x0012
+  SDRIVERRESTRICTED = '[0x0012]: Application is not licensed to use this feature';
+//#define DBXERR_LOCALTRANSACTIVE        0x0013
+  SLOCALTRANSACTIVE = '[0x0013]: Local Transaction already active';
+//#define DBXERR_MULTIPLETRANSNOTENABLED 0x0014
+  SMULTIPLETRANSNOTENABLED = '[0x0014]: Multiple Transactions not Enabled';
+//#define DBXERR_CONNECTIONFAILED        0x0015
+  SCONNECTIONFAILED = '[0x0015]: Connection failed';
+//#define DBXERR_DRIVERINITFAILED        0x0016
+  SDRIVERINITFAILED ='[0x0016]: Driver initialization failed';
+//#define DBXERR_OPTLOCKFAILED           0x0017
+  SOPTLOCKFAILED = '[0x0017]: Optimistic Locking failed';
+//#define DBXERR_INVALIDREF              0x0018
+  SINVALIDREF = '[0x0018]: Invalid REF';
+//#define DBXERR_NOTABLE                 0x0019
+  SNOTABLE = '[0x0019]: No table found';
+//#define DBXERR_NODATA                  0x0064
+  SNODATA = '[0x0064]: No more data';
+//#define DBXERR_SQLERROR                0x0065
+  SSQLERROR = '[0x0065]: SQL Error';
+
+  SDBXError = 'dbExpress Error: %s';
+  SSQLServerError = 'SQL Server Error: %s';
+
   SConfFileMoveError = 'Unable to move %s to %s';
   SMissingConfFile = 'Configuration file %s not found';
   SObjectViewNotTrue = 'ObjectView must be True for Table with Object fields';
@@ -134,6 +175,8 @@ resourcestring
   SLogFileFilter = 'Log files (*.log)';
   SCircularProvider = 'Circular provider references not allowed.';
 
+// Removed in D8
+SMultiConnNotSupported = 'Multiple Connections not supported by %s driver';
 const
 
   DbxError : array[0..19] of String = ( '', SNOMEMORY, SINVALIDFLDTYPE,

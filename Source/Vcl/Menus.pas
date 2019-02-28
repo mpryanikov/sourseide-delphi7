@@ -424,7 +424,7 @@ function AnsiSameCaption(const Text1, Text2: string): Boolean;
 
 implementation
 
-uses Controls, Forms, Consts;
+uses Controls, Forms, Consts, Themes;
 
 const
   RightToLeftMenuFlag = MFT_RIGHTORDER or MFT_RIGHTJUSTIFY;
@@ -1083,7 +1083,10 @@ var
       begin
         if (odSelected in State) or (odHotLight in State) then
         begin
-          Brush.Color := clMenuHighlight;
+          if ThemeServices.ThemesEnabled then
+            Brush.Color := clMenuHighlight
+          else
+            Brush.Color := clHighlight;
           Font.Color := clHighlightText;
         end
         else if TopLevel then
@@ -1282,7 +1285,10 @@ var
       begin
         if (odSelected in State) or (odHotLight in State) then
         begin
-          Brush.Color := clMenuHighlight;
+          if ThemeServices.ThemesEnabled then
+            Brush.Color := clMenuHighlight
+          else
+            Brush.Color := clHighlight;
           Font.Color := clHighlightText;
         end
         else if TopLevel then

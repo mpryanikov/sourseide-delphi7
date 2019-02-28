@@ -84,34 +84,50 @@ implementation
 uses
   ComConst;
 
+type
+  TFNGetLongPathName = function(lpszShortName: LPCTSTR; lpszLongName: LPTSTR;
+    cchBuffer: DWORD): DWORD; stdcall;
+         
+var
+  GetLongPathName: TFNGetLongPathName = nil;
 
 function ShortToLongFileName(FileName: string): string;
 var
   FindData: TWin32FindData;
   Search: THandle;
 begin
-	Result := '';
-
-  // Strip off one directory level at a time starting with the file name
-  // and store it into the result. FindFirstFile will return the long file
-  // name from the short file name.
-  while (True) do
+  // Use GetLongPathName where available (Win98 and later) to avoid
+  // Win98 SE problems accessing UNC paths on NT/2K/XP based systems
+  if Assigned(GetLongPathName) then
   begin
-  	Search := Windows.FindFirstFile(PChar(FileName), FindData);
+    SetLength(Result, MAX_PATH + 1);
+    SetLength(Result, GetLongPathName(PChar(FileName), @Result[1], MAX_PATH));
+  end
+  else
+  begin
+    Result := '';
 
-    if Search = INVALID_HANDLE_VALUE then
-    	Break;
+    // Strip off one directory level at a time starting with the file name
+    // and store it into the result. FindFirstFile will return the long file
+    // name from the short file name.
+    while (True) do
+    begin
+      Search := Windows.FindFirstFile(PChar(FileName), FindData);
 
-  	Result := string('\') + FindData.cFileName + Result;
-    FileName := ExtractFileDir(FileName);
-  	Windows.FindClose(Search);
+      if Search = INVALID_HANDLE_VALUE then
+        Break;
 
-    // Found the drive letter followed by the colon.
-    if Length(FileName) <= 2 then
-    	Break;
+      Result := string('\') + FindData.cFileName + Result;
+      FileName := ExtractFileDir(FileName);
+      Windows.FindClose(Search);
+
+      // Found the drive letter followed by the colon.
+      if Length(FileName) <= 2 then
+        Break;
+    end;
+
+    Result := ExtractFileDrive(FileName) + Result;
   end;
-
-  Result := ExtractFileDrive(FileName) + Result;
 end;
 
 function GetModuleFileName: string;
@@ -422,6 +438,8 @@ begin
   FHelpFileName := Value;
 end;
 
+var
+  KernelHandle: THandle;
 initialization
 begin
   OleAutHandle := SafeLoadLibrary('OLEAUT32.DLL');
@@ -432,6 +450,9 @@ begin
     InitProc := @InitComServer;
     AddTerminateProc(@AutomationTerminateProc);
   end;
+  KernelHandle := GetModuleHandle('KERNEL32');
+  if KernelHandle <> 0 then
+    @GetLongPathName := GetProcAddress(KernelHandle, 'GetLongPathNameA');
 end;
 
 finalization

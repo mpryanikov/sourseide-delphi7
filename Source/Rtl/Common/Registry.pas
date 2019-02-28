@@ -214,9 +214,9 @@ procedure TRegistry.CloseKey;
 begin
   if CurrentKey <> 0 then
   begin
-    if LazyWrite then
-      RegCloseKey(CurrentKey) else
+    if not LazyWrite then
       RegFlushKey(CurrentKey);
+    RegCloseKey(CurrentKey);
     FCurrentKey := 0;
     FCurrentPath := '';
   end;

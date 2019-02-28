@@ -2287,7 +2287,7 @@ begin
     varDouble:   S := FloatToStr(V.VDouble);
     varCurrency: S := CurrToWStrViaOS(V.VCurrency);
     varDate:     S := DateToWStrViaOS(V.VDate);
-    varOleStr:   S := Copy(V.VOleStr, 1, MaxInt);
+    varOleStr:   S := Copy(WideString(Pointer(V.VOleStr)), 1, MaxInt);
     varBoolean:  S := BoolToWStrViaOS(V.VBoolean);
     varShortInt: S := IntToStr(V.VShortInt);
     varByte:     S := IntToStr(V.VByte);
@@ -2401,7 +2401,7 @@ begin
     varDouble:   S := FloatToStr(V.VDouble);
     varCurrency: S := CurrToWStrViaOS(V.VCurrency);
     varDate:     S := DateToWStrViaOS(V.VDate);
-    varOleStr:   S := Copy(V.VOleStr, 1, MaxInt);
+    varOleStr:   S := Copy(WideString(Pointer(V.VOleStr)), 1, MaxInt);
     varBoolean:  S := BoolToWStrViaOS(V.VBoolean);
     varShortInt: S := IntToStr(V.VShortInt);
     varByte:     S := IntToStr(V.VByte);
@@ -4623,6 +4623,8 @@ asm
         TEST    ECX,ECX
         JGE     @@start
 @@loop:
+        TEST    EBP,EBP
+        JZ      @@loopend
         MOV     EBP,[EBP]
 @@start:
         XOR     EAX,EAX
@@ -4807,7 +4809,9 @@ begin
     begin
       Result[I] := DynArraySize(P) - 1; // Adjust for 0-base low-bound
       P := PPointerArray(p)[0];         // Assume rectangular arrays
-    end;
+    end
+    else
+      Result[I] := -1;
     Inc(I);
   end;
 end;

@@ -1051,8 +1051,12 @@ var pTempCorbaAny : PCorbaAny;
     temp : Any;
 begin
   FProxy.Get_Any(pTempCorbaAny);
-  if AnyToVariant(pTempCorbaAny, @temp) then
-     Value := temp;
+  try
+    if AnyToVariant(pTempCorbaAny, @temp) then
+       Value := temp;
+  finally
+    CorbaReleaseAny(pTempCorbaAny);
+  end;
 end;
 
 procedure TInputStream.ReadPrincipal(out Value : Principal);
@@ -1838,8 +1842,12 @@ var pTempCorbaAny : PCorbaAny;
   Proxy: ORBPAS45.MarshalInBufferProxy;
 begin
   pTempCorbaAny := VariantToAny(@Value);
-  FProxy.Get_Any(pTempCorbaAny, Proxy);
-  Input := TInputStream.Create(Proxy);
+  try
+    FProxy.Get_Any(pTempCorbaAny, Proxy);
+    Input := TInputStream.Create(Proxy);
+  finally
+    CorbaReleaseAny(pTempCorbaAny)
+  end;
 end;
 
 { Dynamic invocation helper methods }
@@ -1942,11 +1950,15 @@ var
   temp : Any;
 begin
   pTempCorbaAny := FProxy.MakeAnyObjRef(tc, (Obj as ProxyUser).Proxy as ORBPAS45.ObjectProxy);
+  try
+    if AnyToVariant( pTempCorbaAny, @temp ) then
+      result := temp
+    else
+      raise BAD_OPERATION.Create;
+  finally
+    CorbaReleaseAny(pTempCorbaAny)
+  end;
 
-  if AnyToVariant( pTempCorbaAny, @temp ) then
-    result := temp
-  else
-    raise BAD_OPERATION.Create;
 end;
 
 function TORB.GetObjectRef(var A : Any) : CORBAObject;

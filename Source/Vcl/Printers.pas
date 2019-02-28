@@ -610,6 +610,7 @@ begin
     begin
       GlobalUnlock(DeviceMode);
       GlobalFree(DeviceMode);
+      DevMode := nil;
     end;
     DeviceMode := ADeviceMode;
   end;
@@ -659,6 +660,7 @@ begin
           GlobalUnlock(DeviceMode);
           GlobalFree(DeviceMode);
           DeviceMode := 0;
+          DevMode := nil;
         end
       end;
     end;

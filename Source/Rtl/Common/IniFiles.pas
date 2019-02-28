@@ -525,7 +525,7 @@ begin
   for I := 0 to Count - 1 do
   begin
     Key := Get(I);
-    P := AnsiPos('=', Key);
+    P := AnsiPos(NameValueSeparator, Key);
     if P <> 0 then
     begin
       if not CaseSensitive then

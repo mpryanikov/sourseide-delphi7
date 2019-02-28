@@ -5302,6 +5302,7 @@ var
 begin
   if (Source = nil) or (Source is TBitmap) then
   begin
+    FreeContext;
     EnterCriticalSection(BitmapImageLock);
     try
       if Source <> nil then

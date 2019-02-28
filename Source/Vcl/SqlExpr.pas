@@ -839,7 +839,7 @@ begin
   begin
     if DataSet.MaxBlobSize = 0 then exit;
     Status := DataSet.FSQLCursor.GetBlobSize(Word(FieldNo), Result, IsNull);
-    if Status <> SQL_SUCCESS then
+    if Status <> DBXERR_NONE then
       DataSet.SQLError(Status, exceptCursor);
     if IsNull then
       Result := 0;
@@ -1125,7 +1125,7 @@ begin
         Status := Command.setParameter(iFldNum - ChildPosArray[I], ChildPosArray[I], TSTMTParamType(ArgDesc.iArgType),
                 iFldType, iSubType, Params[I].Size,
                 Integer(ArgDesc.iUnits2), ArgDesc.iLen, RecBuffer, IInd);
-        if (Status <> SQL_Success) then
+        if (Status <> DBXERR_NONE) then
           Sender.SQLError(Status, exceptConnection);
       finally
         if RecBuffer <> nil then FreeMem(RecBuffer);
@@ -1642,68 +1642,84 @@ begin
   FMonitorUsers.Remove(Client);
 end;
 
-{ Exception handling routine }
+{ Driver Exception handling routine }
+const
+  DbxError : array[0..25] of String = (SqlConst.SNOERROR, SqlConst.SWARNING,
+      SqlConst.SNOMEMORY, SqlConst.SINVALIDFLDTYPE, SqlConst.SINVALIDHNDL,
+      SqlConst.SNOTSUPPORTED, SqlConst.SINVALIDTIME, SqlConst.SINVALIDXLATION,
+      SqlConst.SOUTOFRANGE, SqlConst.SINVALIDPARAM, SqlConst.SEOF,
+      SqlConst.SSQLPARAMNOTSET, SqlConst.SINVALIDUSRPASS, SqlConst.SINVALIDPRECISION,
+      SqlConst.SINVALIDLEN, SqlConst.SINVALIDXISOLEVEL, SqlConst.SINVALIDTXNID,
+      SqlConst.SDUPLICATETXNID, SqlConst.SDRIVERRESTRICTED, SqlConst.SLOCALTRANSACTIVE,
+      SqlConst.SMULTIPLETRANSNOTENABLED, SqlConst.SCONNECTIONFAILED,
+      SqlConst.SDRIVERINITFAILED, SqlConst.SOPTLOCKFAILED, SqlConst.SINVALIDREF,
+      SqlConst.SNOTABLE);
+
 
 procedure TSQLConnection.SQLError(OpStatus: SQLResult; eType: TSQLExceptionType; const Command: ISQLCommand = nil);
 var
-  ExceptionMessage: string;
+  dbxErrorMsg, ServerErrorMsg, ExceptionMessage: string;
   Message: PChar;
   Status: SQLResult;
   MessageLen: SmallInt;
 begin
+  dbxErrorMsg := '';
+  ServerErrorMsg := '';
+  ExceptionMessage := '';
   Status := SQL_NULL_DATA;
-  ExceptionMessage := SErrorMappingError;
   Message := nil;
   if (OpStatus > 0) and (OpStatus <=  DBX_MAXSTATICERRORS) then
-    ExceptionMessage := DbxError[ OpStatus ]
-  else if (OpStatus > 0) and (OpStatus < MaxReservedStaticErrors) then
-    ExceptionMessage := SDBXUNKNOWNERROR
-  else
+  begin
+    if OpStatus = 64 then dbxErrorMsg := Format(SDBXError, [SqlConst.SNODATA])
+    else if OpStatus = 65 then dbxErrorMsg := Format(SDBXError, [SqlConst.SSQLERROR])
+    else dbxErrorMsg := Format(SDBXError, [DbxError[OpStatus]]);
+  end;
+  case eType of
+    exceptCommand:
     begin
-      case eType of
-        exceptCommand:
-          begin
-            Status := Command.getErrorMessageLen(MessageLen);
-            if (Status = SQL_SUCCESS) and (MessageLen > 0) then
-            begin
-              Message := AllocMem(MessageLen + 1);
-              Status := Command.getErrorMessage(Message);
-            end;
-          end;
-        exceptConnection:
-          begin
-            Status := FISQLConnection.getErrorMessageLen(MessageLen);
-            if (Status = SQL_SUCCESS) and (MessageLen > 0) then
-            begin
-              Message := AllocMem(MessageLen + 1);
-              Status := FISQLConnection.getErrorMessage(Message);
-            end;
-          end;
-        exceptMetaData:
-          begin
-            Status := FSQLMetaData.getErrorMessageLen(MessageLen);
-            if (Status = SQL_SUCCESS) and (MessageLen> 0) then
-            begin
-              Message := AllocMem(MessageLen + 1);
-              Status := FSQLMetaData.getErrorMessage(Message);
-            end;
-          end;
-      end;
-      if Status = SQL_SUCCESS then
+      Status := Command.getErrorMessageLen(MessageLen);
+      if (Status = DBXERR_NONE) and (MessageLen > 0) then
       begin
-        if MessageLen > 0 then
-        begin
-          SetString(ExceptionMessage, Message, StrLen(Message));
-        end else
-          ExceptionMessage := SErrorMappingError;
-      end
-      else if LastError <> '' then
-        ExceptionMessage := LastError;
-      if Assigned(Message) then
-        FreeMem(Message);
-      if ExceptionMessage = '' then
-        ExceptionMessage := LastError;
+        Message := AllocMem(MessageLen + 1);
+        Status := Command.getErrorMessage(Message);
+      end;
     end;
+    exceptConnection:
+    begin
+      Status := FISQLConnection.getErrorMessageLen(MessageLen);
+      if (Status = DBXERR_NONE) and (MessageLen > 0) then
+      begin
+        Message := AllocMem(MessageLen + 1);
+        Status := FISQLConnection.getErrorMessage(Message);
+      end;
+    end;
+    exceptMetaData:
+    begin
+      Status := FSQLMetaData.getErrorMessageLen(MessageLen);
+      if (Status = DBXERR_NONE) and (MessageLen> 0) then
+      begin
+        Message := AllocMem(MessageLen + 1);
+        Status := FSQLMetaData.getErrorMessage(Message);
+      end;
+    end;
+  end;
+  if Status = DBXERR_NONE then
+    if MessageLen > 0 then
+      ServerErrorMsg := Format(SSQLServerError, [Message]);
+  if Assigned(Message) then
+    FreeMem(Message);
+  if Length(dbxErrorMsg) > 0 then
+    ExceptionMessage := dbxErrorMsg;
+  if Length(ServerErrorMsg) > 0 then
+  begin
+    if Length(ExceptionMessage) > 0 then
+      ExceptionMessage := ExceptionMessage + #13 + #10;
+    ExceptionMessage := ExceptionMessage + ServerErrorMsg;
+  end;
+  if (Length(ExceptionMessage) = 0) and (LastError <> '') then
+    ExceptionMessage := LastError;
+  if Length(ExceptionMessage) = 0 then
+    ExceptionMessage :=  Format(SDBXUNKNOWNERROR, [intToStr(OpStatus)]);
   FLastError := ExceptionMessage;
   DatabaseError(ExceptionMessage);
 end;
@@ -1801,7 +1817,7 @@ begin
   Len := 1;
   Q := #0;
   Status := FSQLMetadata.getOption(eMetaObjectQuoteChar, @Q, Len, Len);
-  if (Q <> #0) and (Status = SQL_SUCCESS) then
+  if (Q <> #0) and (Status = DBXERR_NONE) then
     FQuoteChar := Q;
   Result := FQuoteChar;
 end;
@@ -1845,7 +1861,7 @@ begin
   try
     SetCursor(HourGlassCursor);
     Status := getDriver(PChar(FVendorLib), PChar(Trim(FParams.Values[ERROR_RESOURCE_KEY])), FSQLDriver);
-    if Status <> SQL_SUCCESS then
+    if Status <> DBXERR_NONE then
       DataBaseErrorFmt(sDLLLoadError, [FVendorLib]);
     Check(FSQLDriver.setOption(eDrvRestrict, GDAL));
     Check(FSQLDriver.getSQLConnection(FISQLConnection));
@@ -1926,7 +1942,6 @@ begin
      SQLDllHandle := THandle(0);
      ConnectionState := csStateClosed;
      FSQLDriver := nil;
-     FActiveStatements := 0;
   end;
   FParamsLoaded := False;
 end;
@@ -1977,13 +1992,12 @@ end;
 
 function TSQLConnection.GetConnectionForStatement: TSQLConnection;
 begin
-  if (FMaxStmtsPerConn > 0) and (FActiveStatements >= FMaxStmtsPerConn) then
-  begin
-    if not AutoClone then
-      DataBaseErrorFmt(SMultiConnNotSupported, [DriverName]);
-    Result := CloneConnection;
-  end else
+  if (FMaxStmtsPerConn > 0) and (FActiveStatements >= FMaxStmtsPerConn) and
+      not (FTransactionCount > 0) and AutoClone then
+    Result := CloneConnection
+  else
     Result := Self;
+  FActiveStatements := 0;
 end;
 
 function TSQLConnection.ExecuteDirect(const SQL: string): Integer;
@@ -1993,13 +2007,21 @@ var
   Status: SQLResult;
   Connection: TSQLConnection;
   RowsetSize: Integer;
+  CurSection : TSqlToken;
+  PCommand: pChar;
+  Value: string;
 begin
   CheckConnection(eConnect);
   Cursor := nil;
   Result := 0;
   RowsetSize := defaultRowsetSize;
+  PCommand := PChar(SQL);
+  CurSection := stUnknown;
+  CurSection := NextSQLToken(PCommand, Value, CurSection);
+  if CurSection = stSelect then
+    Inc(FActiveStatements);
   Connection := GetConnectionForStatement;
-  if Connection.FISQLConnection.getSQLCommand(Command) = SQL_SUCCESS then
+  if Connection.FISQLConnection.getSQLCommand(Command) = DBXERR_NONE then
   begin
 
     if Params.Values[ROWSETSIZE_KEY] <> '' then
@@ -2011,13 +2033,13 @@ begin
     Command.setOption(eCommRowsetSize, RowsetSize);
 
     Status := Command.executeImmediate(PChar(SQL), Cursor);
-    if Status = SQL_SUCCESS then
+    if Status = DBXERR_NONE then
     begin
       Status := Command.getRowsAffected(LongWord(Result));
       if not Assigned(Cursor) then
         Command.Close;
     end;
-    if Status <> SQL_SUCCESS then
+    if Status <> DBXERR_NONE then
       SQLError(Status, exceptCommand, Command);
   end;
 end;
@@ -2090,7 +2112,7 @@ begin
         end;
         Status := Command.setParameter(iFldNum, 0, TSTMTParamType(Params[I].ParamType),
                 iFldType, iSubType, Integer(iUnits1), Integer(iUnits2), NumBytes, RecBuffer, IInd);
-        if (Status <> SQL_Success) then
+        if (Status <> DBXERR_NONE) then
           Sender.SQLError(Status, exceptConnection);
       finally
         if RecBuffer <> nil then FreeMem(RecBuffer);
@@ -2128,15 +2150,15 @@ begin
     begin
       DS.CheckStatement;
       Status := DS.FSQLCommand.prepare(PChar(SQLText), ParamCount);
-      if Status <> SQL_SUCCESS then
+      if Status <> DBXERR_NONE then
         SQLError(Status, exceptCommand, DS.FSQLCommand);
       if ParamCount > 0 then
         SetQueryParams(Self, DS.FSQLCommand, Params);
       Status := DS.FSQLCommand.execute(DS.FSQLCursor);
-      if Status <> SQL_SUCCESS then
+      if Status <> DBXERR_NONE then
         SQLError(Status, exceptCommand, DS.FSQLCommand);
       Status := DS.FSQLCommand.getRowsAffected(RowsAffected);
-      if Status <> SQL_SUCCESS then
+      if Status <> DBXERR_NONE then
         SQLError(Status, exceptCommand, DS.FSQLCommand);
       Result := RowsAffected;
     end else
@@ -2185,6 +2207,7 @@ begin      // do not allow nested clones
   Result.FGetDriverFunc := SelfParent.FGetDriverFunc;
   Result.FLibraryName := SelfParent.FLibraryName;
   Result.FVendorLib := SelfParent.VendorLib;
+  Result.FTableScope := SelfParent.TableScope;
   Result.Connected := Self.Connected;
   Result.FCloneParent := SelfParent;
   for I := 0 to FMonitorUsers.Count -1 do
@@ -2243,6 +2266,8 @@ var
   NameField: TField;
   ColName: string;
   PackageName : string;
+  i: integer;
+  found: boolean;
 begin
   CheckConnection(eConnect);
   if FISQLConnection = nil then
@@ -2281,8 +2306,22 @@ begin
         while not DataSet.EOF do
         begin
           ColName := NameField.AsString;
+          (* Begin fix for 179226. Code before was:
           if Pos(',' + ColName + ',', ',' + List.CommaText + ',') = 0 then
             List.Add(ColName);
+          *)
+          found := false;
+          for i := 0 to List.Count -1 do
+          begin
+            if AnsiCompareStr(ColName, List[i]) = 0 then
+            begin
+              found := true;
+              break;
+            end;
+          end;
+          if not found then
+            List.Add(ColName);
+          (* End fix for 179226 *)
           DataSet.Next;
         end;
       finally
@@ -2476,7 +2515,7 @@ begin
       if (not InTransaction) or FSupportsMultiTrans then
       begin
         Status := FISQLConnection.beginTransaction(LongWord(@TransDesc));
-        if not ( Status in [SQL_SUCCESS, DBXERR_NOTSUPPORTED] ) then
+        if not ( Status in [DBXERR_NONE, DBXERR_NOTSUPPORTED] ) then
           Check(Status);
         Inc(FTransactionCount);
       end else
@@ -2497,7 +2536,7 @@ begin
       if Assigned(FISQLConnection) then
       begin
         Status := FISQLConnection.rollback(LongWord(@TransDesc));
-        if not ( Status in [SQL_SUCCESS, DBXERR_NOTSUPPORTED] ) then
+        if not ( Status in [DBXERR_NONE, DBXERR_NOTSUPPORTED] ) then
           Check(Status);
         Dec(FTransactionCount);
       end
@@ -2520,7 +2559,7 @@ begin
       if Assigned(FISQLConnection) then
       begin
         Status := FISQLConnection.Commit(LongWord(@TransDesc));
-        if not ( Status in [SQL_SUCCESS, DBXERR_NOTSUPPORTED] ) then
+        if not ( Status in [DBXERR_NONE, DBXERR_NOTSUPPORTED] ) then
           Check(Status);
         Dec(FTransactionCount);
       end
@@ -2887,59 +2926,63 @@ begin
 end;
 
 { Error Handling routine }
-
 procedure TCustomSQLDataSet.SQLError(OpStatus: SQLResult; eType: TSQLExceptionType);
 var
-  ExceptionMessage: string;
+  dbxErrorMsg, ServerErrorMsg, ExceptionMessage: string;
   Message: PChar;
   Status: SQLResult;
   MessageLen: SmallInt;
 begin
+  dbxErrorMsg := '';
+  ServerErrorMsg := '';
+  ExceptionMessage := '';
   Status := SQL_NULL_DATA;
-  ExceptionMessage := SErrorMappingError;
   Message := nil;
   if (OpStatus > 0) and (OpStatus <=  DBX_MAXSTATICERRORS) then
-    ExceptionMessage := DbxError[ OpStatus ]
-  else if (OpStatus > 0) and (OpStatus < MaxReservedStaticErrors) then
-    ExceptionMessage := SDBXUNKNOWNERROR
-  else
+  begin
+    if OpStatus = 64 then dbxErrorMsg := Format(SDBXError, [SqlConst.SNODATA])
+    else if OpStatus = 65 then dbxErrorMsg := Format(SDBXError, [SqlConst.SSQLERROR])
+    else dbxErrorMsg := Format(SDBXError, [DbxError[OpStatus]]);
+  end;
+  case eType of
+    exceptUseLast:
+      Status := DBXERR_OUTOFRANGE;
+    exceptCursor:
     begin
-      case eType of
-      exceptUseLast:
-        Status := DBXERR_OUTOFRANGE;
-      exceptCursor:
-        begin
-          Status := FSQLCursor.getErrorMessageLen(MessageLen);
-          if (Status = SQL_SUCCESS) and (MessageLen > 0) then
-          begin
-            Message := AllocMem(MessageLen + 1);
-            Status := FSQLCursor.getErrorMessage(Message);
-          end;
-        end;
-      exceptCommand:
-        begin
-          Status := FSQLCommand.getErrorMessageLen(MessageLen);
-          if (Status = SQL_SUCCESS) and (MessageLen > 0) then
-          begin
-            Message := AllocMem(MessageLen + 1);
-            Status := FSQLCommand.getErrorMessage(Message);
-          end;
-        end;
+      Status := FSQLCursor.getErrorMessageLen(MessageLen);
+      if (Status = DBXERR_NONE) and (MessageLen > 0) then
+      begin
+        Message := AllocMem(MessageLen + 1);
+        Status := FSQLCursor.getErrorMessage(Message);
       end;
-      if Status = SQL_SUCCESS then
-        begin
-          if MessageLen > 0 then
-            SetString(ExceptionMessage, Message, StrLen(Message))
-          else
-            ExceptionMessage := SErrorMappingError;
-        end
-      else if LastError <> '' then
-        ExceptionMessage := LastError;
-      if Assigned(Message) then
-        FreeMem(Message);
-      if ExceptionMessage = '' then
-        ExceptionMessage := LastError;
     end;
+    exceptCommand:
+    begin
+      Status := FSQLCommand.getErrorMessageLen(MessageLen);
+      if (Status = DBXERR_NONE) and (MessageLen > 0) then
+      begin
+        Message := AllocMem(MessageLen + 1);
+        Status := FSQLCommand.getErrorMessage(Message);
+      end;
+    end;
+  end;
+  if Status = DBXERR_NONE then
+    if MessageLen > 0 then
+      ServerErrorMsg := Format(SSQLServerError, [Message]);
+  if Assigned(Message) then
+    FreeMem(Message);
+  if Length(dbxErrorMsg) > 0 then
+    ExceptionMessage := dbxErrorMsg;
+  if Length(ServerErrorMsg) > 0 then
+  begin
+    if Length(ExceptionMessage) > 0 then
+      ExceptionMessage := ExceptionMessage + #13 + #10;
+    ExceptionMessage := ExceptionMessage + ServerErrorMsg;
+  end;
+  if (Length(ExceptionMessage) = 0) and (LastError <> '') then
+    ExceptionMessage := LastError;
+  if Length(ExceptionMessage) = 0 then
+    ExceptionMessage :=  Format(SDBXUNKNOWNERROR, [intToStr(OpStatus)]);
   FLastError := ExceptionMessage;
   DatabaseError(ExceptionMessage);
 end;
@@ -2960,9 +3003,9 @@ begin
       ObjectField := TObjectField(Fields[I]);
       TypeDesc.iFldNum := ObjectField.FieldNo;
       if (FSQLCursor.getOption(eCurObjectTypeName, @TypeDesc,
-        SizeOf(TypeDesc), Len) = SQL_SUCCESS) then
+        SizeOf(TypeDesc), Len) = DBXERR_NONE) then
         ObjectField.ObjectType := TypeDesc.szTypeName;
-//        SizeOf(TypeDesc), Len) = SQL_SUCCESS) and (Len > 0) then
+//        SizeOf(TypeDesc), Len) = DBXERR_NONE) and (Len > 0) then
       with ObjectField do
         if DataType in [ftADT, ftArray] then
         begin
@@ -3029,22 +3072,14 @@ begin
     FreeCursor;
     CloseStatement;
     FSQLCommand := nil;
-    if Assigned(FSQLConnection) then
-    begin
-      if Assigned(FClonedConnection) then
-        FreeAndNil(FClonedConnection)
-      else
-        Dec(FSQLConnection.FActiveStatements);
-    end;
+    if Assigned(FSQLConnection) and Assigned(FClonedConnection) then
+      FreeAndNil(FClonedConnection);
     FPrepared := False;
     FParamCount := -1;
-  end else if FSchemaInfo.FType <> stNoSchema then
-  begin
-    if Assigned(FClonedConnection) then
-      FreeAndNil(FClonedConnection)
-    else
-      Dec(FSQLConnection.FActiveStatements);
-  end;
+  end
+  else
+  if (FSchemaInfo.FType <> stNoSchema) and (Assigned(FClonedConnection)) then
+    FreeAndNil(FClonedConnection);
   if Assigned(FieldDefs) then
     FieldDefs.Updated := False;
   ClearIndexDefs;
@@ -3349,12 +3384,11 @@ begin
     DatabaseError(SDataSetClosed, self);
 
   {When EOF is True we should not be calling into the driver to get Data}
-  {Calc field not computed for the first record as EOF is True}
   if EOF = True then
   begin
     Result := False;
     Exit;
-  end;  
+  end;
   FBlank := True;
   Status := FSQLCursor.getColumnType(FieldNo, FldType, SubType);
   if (Status = 0) then
@@ -3372,7 +3406,7 @@ begin
         begin
           Status := FSQLCursor.GetBcd(FieldNo, Buffer, FBlank);
           Field := FieldByNumber(FieldNo);
-          if (not FBlank) and (Status = SQL_SUCCESS) and (Field <> nil) then
+          if (not FBlank) and (Status = DBXERR_NONE) and (Field <> nil) then
           begin
             if Field.DataType = ftBcd then
             begin
@@ -3406,7 +3440,8 @@ begin
         end;
     end;
   end;
-  Check(Status);
+  if Status <> 0 then 
+    SQLError(Status, exceptCursor);
   Result := not FBlank;
 end;
 
@@ -3470,13 +3505,15 @@ begin
     DatabaseError(SDataSetClosed, self);
   if FCurrentBlobSize > 0 then
   begin
-    Check(FSQLCursor.getColumnType(LongWord(FieldNo), FldType, SubType));
+  if (FSQLCursor.getColumnType(LongWord(FieldNo), FldType, SubType) <> 0) then 
+    SQLError(FSQLCursor.getColumnType(LongWord(FieldNo), FldType, SubType), exceptCursor);
     if LongWord(Length(Buffer)) < CurrentBlobSize then
       SetLength(Buffer, CurrentBlobSize);
     if FCurrentBlobSize = 0 then
       Result := 0
     else
-      Check(FSQLCursor.GetBlob(LongWord(FieldNo), PChar(Buffer), IsNull, FCurrentBlobSize));
+      if (FSQLCursor.GetBlob(LongWord(FieldNo), PChar(Buffer), IsNull, FCurrentBlobSize) <> 0) then
+        SQLError(FSQLCursor.GetBlob(LongWord(FieldNo), PChar(Buffer), IsNull, FCurrentBlobSize), exceptCursor);
   end;
   if not IsNull then Result := CurrentBlobSize;
 end;
@@ -3532,10 +3569,12 @@ var
   Status: SQLResult;
 begin
   Status := FSQLCursor.next;
-  if (not (Status in [SQL_SUCCESS, SQL_NULL_DATA, DBXERR_EOF])) then
-     Check(Status);
-  if Status = SQL_SUCCESS then
+  if (not (Status in [DBXERR_NONE, SQL_NULL_DATA, DBXERR_EOF])) then
+     if (Status <> 0) then SQLError(Status, exceptCursor);
+  if Status = DBXERR_NONE then
   begin
+    if EOF then
+      ActivateBuffers;
     GetCalcFields(FCalcFieldsBuffer);
     Result := grOK
   end
@@ -3861,7 +3900,6 @@ begin
     FreeStatement;
   if not Assigned(Connection.Connection) then
     DatabaseError(SdatabaseOpen, Self);
-  Inc(Connection.FActiveStatements);
   if not ForSchema then
   begin
     if Length(FCommandText) = 0 then
@@ -3940,12 +3978,22 @@ end;
 
 procedure TCustomSQLDataSet.PrepareStatement;
 var
-  SQLText: string;
+  SQLText, Value: string;
+  Command: pChar;
+  CurSection : TSqlToken;
 begin
   if Length(CommandText) = 0 then
     DatabaseError(SEmptySQLStatement, Self);
+  Command := PChar(CommandText);
+  CurSection := stUnknown;
+  CurSection := NextSQLToken(Command, Value, CurSection);
+  if (CurSection = stSelect) or (FCommandType in [ctTable]) then
+    Inc(FSQLConnection.FActiveStatements);
   CheckStatement;
   SQLText := GetQueryFromType;
+  CurSection := NextSQLToken(Command, Value, CurSection);
+  if CurSection = stSelect then
+    Inc(FSQLConnection.FActiveStatements);
   if Params.Count > 0 then
     SQLText := CheckDetail(SQLText);
   if CommandType = ctStoredProc then
@@ -4016,9 +4064,9 @@ begin
       if FGetNextRecordSet then
       begin
         Status := FSQLCommand.getNextCursor(FSQLCursor);
-        if not (Status in [SQL_SUCCESS, SQL_NULL_DATA]) then
+        if not (Status in [DBXERR_NONE, SQL_NULL_DATA]) then
           Check(Status);
-        if Status <> SQL_SUCCESS then
+        if Status <> DBXERR_NONE then
           Active := False
         else if Params.Count > 0 then
           GetOutputParams(FProcParams);
@@ -4469,7 +4517,7 @@ begin
     begin
       Status := GetInternalConnection.FSQLMetaData.setOption(
                   eMetaPackageName, Integer(PChar(FSchemaInfo.PackageName)));
-      if Status = SQL_SUCCESS then
+      if Status = DBXERR_NONE then
         Status := GetInternalConnection.FSQLMetaData.getProcedures(
                     WildCard, eSQLProcedure, FSQLCursor);
     end;
@@ -4481,7 +4529,7 @@ begin
     begin
       Status := GetInternalConnection.FSQLMetaData.setOption(
                   eMetaPackageName, Integer(PChar(FSchemaInfo.PackageName)));
-      if Status = SQL_SUCCESS then
+      if Status = DBXERR_NONE then
         Status := GetInternalConnection.FSQLMetaData.getProcedureParams(
                     PChar(FSchemaInfo.ObjectName), WildCard,
                     FSQLCursor);
@@ -4490,7 +4538,7 @@ begin
       Status := GetInternalConnection.FSQLMetaData.getIndices(
                   PChar(FSchemaInfo.ObjectName), 0, FSQLCursor);
   end;
-  if Status <> SQL_SUCCESS then
+  if Status <> DBXERR_NONE then
     GetInternalConnection.SQLError(Status, exceptMetaData);
 end;
 
@@ -4938,11 +4986,19 @@ end;
 procedure TSQLQuery.PrepareStatement;
 var
   SQLText: string;
+  CurSection: TSqlToken;
+  Value: string;
+  Command: PChar;
 begin
   if FCommandText = '' then
     SetSQL(SQL);
   if Length(CommandText) = 0 then
     DatabaseError(SEmptySQLStatement, Self);
+  Command := PChar(CommandText);
+  CurSection := stUnknown;
+  CurSection := NextSQLToken(Command, Value, CurSection);
+  if CurSection = stSelect then
+    Inc(FSQLConnection.FActiveStatements);
   CheckStatement;
   SQLText := FNativeCommand;
   Check(FSQLCommand.prepare(PChar(SQLText), ParamCount));
@@ -5195,7 +5251,7 @@ procedure TSQLTable.PrepareStatement;
 
 var
   FDetailWhere, SQLText, IdxFieldNames: string;
-  FActiveStatements, FIndex, Pos1, Pos2: Integer;
+  FIndex, Pos1, Pos2: Integer;
   FName1, FName2, TempString1, TempString2: string;
   STableName : string;
   Q: String;
@@ -5229,10 +5285,8 @@ begin  // first, convert TableName into valid Query.
           Inc(FIndex);
         end;
       FCommandType := ctQuery;
-      FActiveStatements := FSQLConnection.FActiveStatements;
       SetCommandText(SSelectStarFrom + AddQuoteCharToObjectName(Self ,FTableName, Q)
                       + FDetailWhere);
-      FSQLConnection.FActiveStatements := FActiveStatements;
     end else
     begin
       FIsDetail := False;
@@ -5249,6 +5303,8 @@ begin  // first, convert TableName into valid Query.
     end;
   end else if Params.Count > 0 then
     AddParamsToQuery;
+
+  Inc(FSQLConnection.FActiveStatements);
   CheckStatement;
   SQLText := FNativeCommand;
   Check(FSQLCommand.prepare(PChar(SQLText), ParamCount));

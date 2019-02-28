@@ -72,8 +72,8 @@ uses ComObj;
 
 constructor TMtsDataModule.Create(AOwner: TComponent);
 begin
-  inherited Create(AOwner);
   FAutoComplete := True;
+  inherited Create(AOwner);
 end;
 
 procedure TMtsDataModule.Activate;
@@ -156,8 +156,8 @@ function TMtsDataModule.AS_ApplyUpdates(const ProviderName: WideString; Delta: O
 begin
   try
     Result := inherited AS_ApplyUpdates(ProviderName, Delta, MaxErrors, ErrorCount, OwnerData);
-    if (ErrorCount <= MaxErrors) or (ErrorCount = -1) then
-      CallComplete(True) 
+    if (ErrorCount <= MaxErrors) or (MaxErrors = -1) then
+      CallComplete(True)
     else
       CallComplete(False);
   except

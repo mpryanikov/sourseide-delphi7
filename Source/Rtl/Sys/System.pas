@@ -5,14 +5,6 @@
 {                                                                         }
 { Copyright (c) 1988, 2001 Borland Software Corporation                   }
 {                                                                         }
-{  This file may be distributed and/or modified under the terms of the    }
-{  GNU General Public License version 2 as published by the Free Software }
-{  Foundation and appearing at http://www.borland.com/kylix/gpl.html.     }
-{                                                                         }
-{  Licensees holding a valid Borland No-Nonsense License for this         }
-{  Software may use this file in accordance with such license, which      }
-{  appears in the file license.txt that came with this software.          }
-{                                                                         }
 { *********************************************************************** }
 
 unit System; { Predefined constants, types, procedures, }
@@ -17772,7 +17764,7 @@ end;
 {$IFDEF MSWINDOWS}
 function LoadResString(ResStringRec: PResStringRec): string;
 var
-  Buffer: array [0..1023] of char;
+  Buffer: array [0..4095] of char;
 begin
   if ResStringRec = nil then Exit;
   if ResStringRec.Identifier < 64*1024 then

@@ -1047,7 +1047,7 @@ function TValueListStrings.FindItemProp(const KeyOrIndex: Variant;
 var
   Index: Integer;
 begin
-  if Count > 0 then
+  if (Count > 0) and Assigned(FItemProps) then
   begin
     if VarIsOrdinal(KeyOrIndex) then
       Index := KeyOrIndex

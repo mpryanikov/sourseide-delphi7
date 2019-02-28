@@ -1,14 +1,14 @@
 [Closed Files]
-File_0=SourceModule,'C:\Projects\Projects_7\AlManager\Client_AM\DMMain.pas',0,1,87,1,111,0,0
-File_1=SourceModule,'C:\Projects\Projects_7\AlManager\Client_AM\BuhOperWin.pas',0,1,4420,14,4441,0,0
-File_2=SourceModule,'C:\Projects\Projects_7\AlManager\WebServer\frxRepData.pas',0,1,1,67,11,1,0
-File_3=SourceModule,'C:\Projects\Projects_7\AlManager\WebServer\uRep.pas',0,1,151,72,155,0,0
-File_4=SourceModule,'C:\Projects\Projects_7\AlManager\WebServer\Data.pas',0,1,193,77,208,1,0
-File_5=SourceModule,'C:\Projects\Projects_7\AlManager\UnitSQL.pas',0,1,48,80,62,0,0
-File_6=SourceModule,'C:\Projects\Projects_7\AlManager\Client_AM\Rew_Edit.pas',0,1,179,49,184,0,0
-File_7=SourceModule,'C:\Projects\Projects_7\AlManager\Client_AM\MAIN.pas',0,1,327,101,344,1,0
-File_8=SourceModule,'C:\Projects\Projects_7\AlManager\Client_AM\DataReport.pas',0,1,4,84,18,1,0
-File_9=SourceModule,'C:\Projects\Projects_7\AlManager\frxReportDll\frxRepData.pas',0,1,146,72,159,0,0
+File_0=SourceModule,'C:\Projects_OK\OkService\Modules\SrvDModule.pas',0,1,3469,57,3493,0,0
+File_1=SourceModule,'C:\Projects_OK\OkService\Modules\Params.pas',0,1,212,1,234,0,0
+File_2=SourceModule,'C:\Projects_OK\OkService\Modules\uSMS.pas',0,1,1,89,31,0,0
+File_3=SourceModule,'C:\Projects_OK\Ok\Modules\PayPretensionView.pas',0,1,1068,60,1085,0,0
+File_4=SourceModule,'C:\Projects_OK\Ok\Modules\Base.pas',0,1,1,1,1,0,0
+File_5=SourceModule,'C:\Projects_OK\Ok\Modules\RapidaCard.pas',0,1,1068,61,1085,0,1
+File_6=SourceModule,'C:\Projects_OK\Ok\Modules\SMSUnit.pas',0,1,13,69,19,1,0
+File_7=SourceModule,'c:\program files (x86)\borland\delphi7\source\rtl\Sys\sysutils.pas',0,1,7442,47,7447,0,0
+File_8=SourceModule,'C:\Projects_OK\Ok\Modules\MainOkGui.pas',0,1,669,72,678,0,0
+File_9=SourceModule,'C:\Projects_OK\Ok\Modules\CustTspEdit.pas',0,1,4108,43,4115,1,0
 
 [Modules]
 Count=0
@@ -20,11 +20,11 @@ Visible=1
 State=0
 Left=0
 Top=0
-Width=1858
+Width=1846
 Height=143
 MaxLeft=-1
 MaxTop=-1
-ClientWidth=1850
+ClientWidth=1838
 ClientHeight=112
 
 [ProjectManager]

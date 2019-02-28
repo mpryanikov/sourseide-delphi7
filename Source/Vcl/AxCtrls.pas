@@ -3850,15 +3850,9 @@ begin
 end;
 
 function HIMETRICtoDP(P: TPoint): TPoint;
-var
-  DC: HDC;
 begin
-  DC := GetDC(0);
-  SetMapMode(DC, MM_HIMETRIC);
-  Result := P;
-  Result.Y := -Result.Y;
-  LPTODP(DC, Result, 1);
-  ReleaseDC(0,DC);
+  Result.X := (Screen.PixelsPerInch * P.X) div 2540;
+  Result.Y := (Screen.PixelsPerInch * P.Y) div 2540;
 end;
 
 function TOleGraphic.GetHeight: Integer;

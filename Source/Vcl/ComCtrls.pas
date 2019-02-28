@@ -22053,7 +22053,7 @@ begin
         FData := nil;
         FCaption := '';
       end;
-    cnExtracting, cnDeleting:
+    cnExtracting:
       if not (csDestroying in TWinControl(Owner).ComponentState) then
         SendMessage(TWinControl(Owner).Handle, CBEM_DELETEITEM, Item.Index, 0);
   end;
