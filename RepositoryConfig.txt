@@ -6,7 +6,7 @@
 	symlinks = false
 	ignorecase = true
 [remote "origin"]
-	url = https://github.com/mpryanikov/sourseide-delphi7.git
+	url = C:\\Program Files (x86)\\Borland\\Delphi7
 	fetch = +refs/heads/*:refs/remotes/origin/*
 [branch "master"]
 	remote = origin
